@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS Final Project — Crypto Analytics Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --aws-orange: #FF9900;
+    --aws-dark: #0A1929;
+    --aws-blue: #00B4D8;
+    --aws-teal: #06D6A0;
+    --aws-red: #EF233C;
+    --bg: #070E1A;
+    --surface: #0D1B2A;
+    --surface2: #112236;
+    --border: rgba(255,153,0,0.2);
+    --text: #E8F4FD;
+    --muted: #7B9CB5;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 3rem;
+    background: rgba(7,14,26,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .aws-smile {
+    width: 48px;
+    height: 30px;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--aws-orange); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8rem 2rem 4rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 40%, rgba(255,153,0,0.07) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 40% at 20% 80%, rgba(0,180,216,0.06) 0%, transparent 60%);
+  }
+
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,153,0,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,153,0,0.04) 1px, transparent 1px);
+    background-size: 50px 50px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent);
+  }
+
+  .hero-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--aws-orange);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: rgba(255,153,0,0.08);
+    border: 1px solid rgba(255,153,0,0.25);
+    padding: 0.4rem 1.2rem;
+    border-radius: 100px;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  .hero h1 {
+    font-size: clamp(3rem, 7vw, 6rem);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.8s 0.1s ease both;
+  }
+
+  .hero h1 span { color: var(--aws-orange); }
+
+  .hero-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    max-width: 560px;
+    line-height: 1.7;
+    margin-bottom: 3rem;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+
+  .hero-authors {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    animation: fadeUp 0.8s 0.3s ease both;
+  }
+
+  .author-chip {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--aws-blue);
+    border: 1px solid rgba(0,180,216,0.3);
+    padding: 0.4rem 1rem;
+    border-radius: 6px;
+    background: rgba(0,180,216,0.05);
+  }
+
+  /* ── SECTIONS ── */
+  section {
+    position: relative;
+    padding: 6rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--aws-orange);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-label::before {
+    content: '';
+    display: inline-block;
+    width: 24px;
+    height: 1px;
+    background: var(--aws-orange);
+  }
+
+  h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 3rem;
+    line-height: 1.1;
+  }
+
+  h2 em {
+    font-style: normal;
+    color: var(--aws-orange);
+  }
+
+  /* ── ARCHITECTURE ── */
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding: 2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    position: relative;
+  }
+
+  .arch-flow::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(255,153,0,0.03), transparent);
+    border-radius: 16px;
+    pointer-events: none;
+  }
+
+  .arch-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 120px;
+    padding: 1.5rem 1rem;
+    border-radius: 12px;
+    transition: background 0.25s, transform 0.25s;
+    cursor: default;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .arch-node:hover {
+    background: rgba(255,153,0,0.08);
+    transform: translateY(-4px);
+  }
+
+  .arch-node:hover .node-icon { filter: drop-shadow(0 0 12px rgba(255,153,0,0.5)); }
+
+  .node-icon {
+    width: 64px;
+    height: 64px;
+    transition: filter 0.3s;
+  }
+
+  .node-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    text-align: center;
+    color: var(--muted);
+    line-height: 1.4;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .arch-arrow {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 0.25rem;
+  }
+
+  .arch-arrow svg {
+    width: 32px;
+    height: 20px;
+    color: var(--aws-orange);
+    opacity: 0.6;
+  }
+
+  /* ── MEDALLION ARCHITECTURE ── */
+  .medallion {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .medal-card {
+    border-radius: 16px;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid transparent;
+    transition: transform 0.3s, box-shadow 0.3s;
+    cursor: default;
+  }
+
+  .medal-card:hover {
+    transform: translateY(-6px);
+  }
+
+  .medal-card.bronze {
+    background: linear-gradient(135deg, #1a1008 0%, #241508 100%);
+    border-color: rgba(205,127,50,0.3);
+    box-shadow: 0 4px 40px rgba(205,127,50,0.08);
+  }
+  .medal-card.bronze:hover { box-shadow: 0 8px 60px rgba(205,127,50,0.2); }
+
+  .medal-card.silver {
+    background: linear-gradient(135deg, #0e1520 0%, #131d2b 100%);
+    border-color: rgba(192,192,192,0.3);
+    box-shadow: 0 4px 40px rgba(192,192,192,0.05);
+  }
+  .medal-card.silver:hover { box-shadow: 0 8px 60px rgba(192,192,192,0.15); }
+
+  .medal-card.gold {
+    background: linear-gradient(135deg, #1a1500 0%, #241e00 100%);
+    border-color: rgba(255,215,0,0.35);
+    box-shadow: 0 4px 40px rgba(255,215,0,0.08);
+  }
+  .medal-card.gold:hover { box-shadow: 0 8px 60px rgba(255,215,0,0.2); }
+
+  .medal-badge {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .medal-title {
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+  .bronze .medal-title { color: #CD7F32; }
+  .silver .medal-title { color: #C0C0C0; }
+  .gold .medal-title   { color: #FFD700; }
+
+  .medal-desc {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .medal-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+
+  .medal-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+  }
+  .bronze .medal-tag { background: rgba(205,127,50,0.15); color: #CD7F32; }
+  .silver .medal-tag { background: rgba(192,192,192,0.1); color: #C0C0C0; }
+  .gold .medal-tag   { background: rgba(255,215,0,0.12);  color: #FFD700; }
+
+  /* ── SERVICES GRID ── */
+  .services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .service-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.75rem;
+    transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .service-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(255,153,0,0.06), transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .service-card:hover {
+    border-color: rgba(255,153,0,0.4);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(255,153,0,0.1);
+  }
+  .service-card:hover::after { opacity: 1; }
+
+  .svc-icon { font-size: 2rem; margin-bottom: 1rem; }
+
+  .svc-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    color: var(--text);
+  }
+
+  .svc-desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── CHARTS SECTION ── */
+  .charts-showcase {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+
+  .chart-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+  }
+
+  .chart-card.wide { grid-column: span 2; }
+
+  .chart-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .chart-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  .chart-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    flex: 1;
+  }
+
+  .chart-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    padding: 0.2rem 0.5rem;
+    background: rgba(6,214,160,0.1);
+    color: var(--aws-teal);
+    border: 1px solid rgba(6,214,160,0.2);
+    border-radius: 4px;
+  }
+
+  .chart-body {
+    padding: 1.5rem;
+  }
+
+  /* ── MINI CHART: BTC PRICE ── */
+  .btc-chart {
+    width: 100%;
+    height: 180px;
+    position: relative;
+  }
+
+  /* ── STREAMING SECTION ── */
+  .streaming-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .streaming-text h3 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+  }
+
+  .streaming-text p {
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
+  }
+
+  .tech-stack {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .tech-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 100px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: transform 0.2s;
+  }
+  .tech-pill:hover { transform: scale(1.05); }
+
+  .tech-pill.kafka {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: white;
+  }
+
+  .tech-pill.grafana {
+    background: rgba(230,89,54,0.15);
+    border: 1px solid rgba(230,89,54,0.3);
+    color: #E65936;
+  }
+
+  .streaming-visual {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stream-line {
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--aws-orange), transparent);
+    margin-bottom: 1rem;
+    animation: stream 2s linear infinite;
+    opacity: 0.7;
+  }
+
+  .stream-line:nth-child(2) { animation-delay: 0.5s; background: linear-gradient(90deg, transparent, var(--aws-blue), transparent); }
+  .stream-line:nth-child(3) { animation-delay: 1s; background: linear-gradient(90deg, transparent, var(--aws-teal), transparent); }
+  .stream-line:nth-child(4) { animation-delay: 1.5s; }
+  .stream-line:nth-child(5) { animation-delay: 0.3s; background: linear-gradient(90deg, transparent, var(--aws-blue), transparent); }
+
+  @keyframes stream {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+
+  .stream-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-align: center;
+    margin-top: 1rem;
+  }
+
+  /* ── FUTURE ── */
+  .future-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .future-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s, border-color 0.3s;
+  }
+
+  .future-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,153,0,0.4);
+  }
+
+  .future-card::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    opacity: 0.06;
+  }
+  .future-card:nth-child(1)::before { background: var(--aws-orange); }
+  .future-card:nth-child(2)::before { background: var(--aws-blue); }
+
+  .future-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--aws-orange);
+    opacity: 0.3;
+    line-height: 1;
+    margin-bottom: 0.75rem;
+  }
+
+  .future-card h3 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .future-card p {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 0 auto;
+    max-width: 1200px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 3rem 2rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: rgba(255,153,0,0.3); border-radius: 3px; }
+
+  /* ── TICKER ── */
+  .ticker {
+    background: rgba(255,153,0,0.06);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 0.6rem 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .ticker-inner {
+    display: inline-block;
+    animation: ticker 20s linear infinite;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+  }
+
+  .ticker-item {
+    display: inline-block;
+    margin-right: 3rem;
+    color: var(--muted);
+  }
+
+  .ticker-item span { color: var(--aws-teal); }
+
+  @keyframes ticker {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ── S3 DIAGRAM ── */
+  .s3-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .s3-row {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .s3-bucket {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .s3-label-small {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-align: center;
+  }
+
+  .policy-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+  }
+
+  .policy-badge.json { background: rgba(0,180,216,0.15); color: var(--aws-blue); border: 1px solid rgba(0,180,216,0.3); }
+  .policy-badge.xml  { background: rgba(239,35,60,0.1);  color: var(--aws-red);  border: 1px solid rgba(239,35,60,0.25); }
+
+  .policy-arrow {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .p-line {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,153,0,0.4), transparent);
+    position: relative;
+  }
+
+  .p-line-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem;
+    color: rgba(255,153,0,0.6);
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  @media (max-width: 768px) {
+    nav { padding: 1rem 1.5rem; }
+    .nav-links { display: none; }
+    .medallion { grid-template-columns: 1fr; }
+    .charts-showcase { grid-template-columns: 1fr; }
+    .chart-card.wide { grid-column: span 1; }
+    .streaming-grid { grid-template-columns: 1fr; }
+    .future-cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <svg class="aws-smile" viewBox="0 0 100 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="5" y="40" font-family="Arial" font-weight="900" font-size="36" fill="white">aws</text>
+      <path d="M10 50 Q50 65 90 50" stroke="#FF9900" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M85 45 L92 50 L85 53" stroke="#FF9900" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>Crypto Pipeline</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#etl">ETL</a></li>
+    <li><a href="#charts">Dashboards</a></li>
+    <li><a href="#streaming">Streaming</a></li>
+    <li><a href="#future">Future</a></li>
+  </ul>
+</nav>
+
+<!-- TICKER -->
+<div class="ticker" style="margin-top:64px;">
+  <div class="ticker-inner">
+    <span class="ticker-item">BTC/USD <span>$89,420.12</span></span>
+    <span class="ticker-item">ETH/USD <span>$1,813.40</span></span>
+    <span class="ticker-item">SMA-100 <span>BULLISH</span></span>
+    <span class="ticker-item">EMA-10 <span>ABOVE</span></span>
+    <span class="ticker-item">AWS GLUE <span>ACTIVE</span></span>
+    <span class="ticker-item">KAFKA STREAMS <span>LIVE</span></span>
+    <span class="ticker-item">QUICKSIGHT <span>CONNECTED</span></span>
+    <span class="ticker-item">BTC/USD <span>$89,420.12</span></span>
+    <span class="ticker-item">ETH/USD <span>$1,813.40</span></span>
+    <span class="ticker-item">SMA-100 <span>BULLISH</span></span>
+    <span class="ticker-item">EMA-10 <span>ABOVE</span></span>
+    <span class="ticker-item">AWS GLUE <span>ACTIVE</span></span>
+    <span class="ticker-item">KAFKA STREAMS <span>LIVE</span></span>
+    <span class="ticker-item">QUICKSIGHT <span>CONNECTED</span></span>
+  </div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-tag" style="position:relative;z-index:1;">☁️ AWS Final Project</div>
+  <h1 style="position:relative;z-index:1;">Crypto<br><span>Analytics</span><br>Pipeline</h1>
+  <p class="hero-sub" style="position:relative;z-index:1;">A serverless end-to-end data pipeline for cryptocurrency market analysis — from raw ingestion to real-time streaming dashboards, powered by AWS.</p>
+  <div class="hero-authors">
+    <div class="author-chip">Jorge Ibinarriaga Robles</div>
+    <div class="author-chip">Bernardo Gómez Carrasco</div>
+    <div class="author-chip">Enrique Rodríguez Camacho</div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="section-label">01 — Overview</div>
+  <h2>Project <em>Architecture</em></h2>
+
+  <div class="arch-flow reveal">
+    <!-- S3 -->
+    <div class="arch-node">
+      <svg class="node-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <rect width="80" height="80" rx="12" fill="#1A3A1A"/>
+        <path d="M40 15 L60 25 L60 55 L40 65 L20 55 L20 25 Z" fill="#3AB03A" opacity="0.9"/>
+        <path d="M20 25 L40 35 L60 25" stroke="#5DC85D" stroke-width="2" fill="none"/>
+        <path d="M40 35 L40 65" stroke="#5DC85D" stroke-width="2"/>
+        <circle cx="40" cy="55" r="6" fill="white" opacity="0.8"/>
+        <line x1="37" y1="55" x2="43" y2="55" stroke="#3AB03A" stroke-width="2"/>
+      </svg>
+      <div class="node-label">Amazon<br>S3 Bucket</div>
+    </div>
+
+    <div class="arch-arrow">
+      <svg viewBox="0 0 32 20"><line x1="0" y1="10" x2="24" y2="10" stroke="currentColor" stroke-width="2"/><polyline points="18,4 26,10 18,16" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    </div>
+
+    <!-- Glue Crawler -->
+    <div class="arch-node">
+      <svg class="node-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <rect width="80" height="80" rx="12" fill="#1A0F2E"/>
+        <rect x="18" y="14" width="44" height="36" rx="4" fill="none" stroke="#7C4DFF" stroke-width="2"/>
+        <line x1="18" y1="22" x2="62" y2="22" stroke="#7C4DFF" stroke-width="1.5" opacity="0.5"/>
+        <line x1="18" y1="30" x2="62" y2="30" stroke="#7C4DFF" stroke-width="1.5" opacity="0.5"/>
+        <line x1="18" y1="38" x2="62" y2="38" stroke="#7C4DFF" stroke-width="1.5" opacity="0.5"/>
+        <!-- bug body -->
+        <ellipse cx="40" cy="56" rx="10" ry="7" fill="#7C4DFF" opacity="0.9"/>
+        <line x1="30" y1="52" x2="22" y2="48" stroke="#7C4DFF" stroke-width="2"/>
+        <line x1="30" y1="56" x2="21" y2="56" stroke="#7C4DFF" stroke-width="2"/>
+        <line x1="50" y1="52" x2="58" y2="48" stroke="#7C4DFF" stroke-width="2"/>
+        <line x1="50" y1="56" x2="59" y2="56" stroke="#7C4DFF" stroke-width="2"/>
+      </svg>
+      <div class="node-label">Glue<br>Crawler</div>
+    </div>
+
+    <div class="arch-arrow">
+      <svg viewBox="0 0 32 20"><line x1="0" y1="10" x2="24" y2="10" stroke="currentColor" stroke-width="2"/><polyline points="18,4 26,10 18,16" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    </div>
+
+    <!-- Data Catalog -->
+    <div class="arch-node">
+      <svg class="node-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <rect width="80" height="80" rx="12" fill="#1A0F2E"/>
+        <rect x="16" y="12" width="48" height="56" rx="5" fill="none" stroke="#7C4DFF" stroke-width="2"/>
+        <line x1="16" y1="26" x2="64" y2="26" stroke="#7C4DFF" stroke-width="1.5" opacity="0.4"/>
+        <line x1="16" y1="38" x2="64" y2="38" stroke="#7C4DFF" stroke-width="1.5" opacity="0.4"/>
+        <line x1="16" y1="50" x2="64" y2="50" stroke="#7C4DFF" stroke-width="1.5" opacity="0.4"/>
+        <!-- funnel -->
+        <polygon points="28,14 52,14 46,22 34,22" fill="#7C4DFF" opacity="0.8"/>
+        <polygon points="34,22 46,22 42,30 38,30" fill="#7C4DFF" opacity="0.9"/>
+        <line x1="40" y1="30" x2="40" y2="36" stroke="#7C4DFF" stroke-width="2.5"/>
+      </svg>
+      <div class="node-label">AWS Glue<br>Data Catalog</div>
+    </div>
+
+    <div class="arch-arrow">
+      <svg viewBox="0 0 32 20"><line x1="0" y1="10" x2="24" y2="10" stroke="currentColor" stroke-width="2"/><polyline points="18,4 26,10 18,16" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    </div>
+
+    <!-- Athena -->
+    <div class="arch-node">
+      <svg class="node-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <rect width="80" height="80" rx="12" fill="#2A1200"/>
+        <rect x="14" y="28" width="12" height="34" rx="2" fill="#FF6B00"/>
+        <rect x="30" y="18" width="12" height="44" rx="2" fill="#FF8800"/>
+        <rect x="46" y="22" width="12" height="40" rx="2" fill="#FFA500"/>
+        <rect x="62" y="34" width="10" height="28" rx="2" fill="#FFB800"/>
+      </svg>
+      <div class="node-label">Amazon<br>Athena</div>
+    </div>
+
+    <div class="arch-arrow">
+      <svg viewBox="0 0 32 20"><line x1="0" y1="10" x2="24" y2="10" stroke="currentColor" stroke-width="2"/><polyline points="18,4 26,10 18,16" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    </div>
+
+    <!-- QuickSight -->
+    <div class="arch-node">
+      <svg class="node-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <rect width="80" height="80" rx="12" fill="#002D62"/>
+        <path d="M15 55 L28 35 L38 45 L50 28 L65 45" stroke="#00B4D8" stroke-width="3" fill="none" stroke-linejoin="round"/>
+        <polygon points="65,35 75,45 65,55" fill="#00D8FF" opacity="0.7"/>
+        <circle cx="28" cy="35" r="3" fill="#00D8FF"/>
+        <circle cx="38" cy="45" r="3" fill="#00D8FF"/>
+        <circle cx="50" cy="28" r="3" fill="#00D8FF"/>
+      </svg>
+      <div class="node-label">Amazon<br>QuickSight</div>
+    </div>
+  </div>
+
+  <!-- Services grid -->
+  <div class="services-grid reveal" style="margin-top:3rem;">
+    <div class="service-card">
+      <div class="svc-icon">🪣</div>
+      <div class="svc-name">Amazon S3</div>
+      <div class="svc-desc">Scalable object storage for raw, processed, and query-result data. Supports Bucket Policy (JSON) and Bucket ACL (XML) access controls.</div>
+    </div>
+    <div class="service-card">
+      <div class="svc-icon">🕷️</div>
+      <div class="svc-name">AWS Glue Crawler</div>
+      <div class="svc-desc">Automatically discovers and catalogues schema from S3 data sources, populating the Data Catalog without manual intervention.</div>
+    </div>
+    <div class="service-card">
+      <div class="svc-icon">📋</div>
+      <div class="svc-name">Glue Data Catalog</div>
+      <div class="svc-desc">Central metadata repository that makes datasets queryable via Athena. Acts as the bridge between storage and analytics.</div>
+    </div>
+    <div class="service-card">
+      <div class="svc-icon">🔍</div>
+      <div class="svc-name">Amazon Athena</div>
+      <div class="svc-desc">Serverless interactive query service that analyses data directly in S3 using standard SQL. Query results are saved back to S3.</div>
+    </div>
+    <div class="service-card">
+      <div class="svc-icon">📊</div>
+      <div class="svc-name">Amazon QuickSight</div>
+      <div class="svc-desc">Fully managed BI service that connects to Athena to render interactive charts, candlestick graphs and EMA comparison dashboards.</div>
+    </div>
+    <div class="service-card">
+      <div class="svc-icon">⚡</div>
+      <div class="svc-name">Amazon EC2</div>
+      <div class="svc-desc">Compute instances used to run data ingestion scripts (Python), shell scripts, and CSV generation before uploading to S3.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ETL -->
+<section id="etl">
+  <div class="section-label">02 — Data Processing</div>
+  <h2>ETL with <em>AWS Glue</em></h2>
+
+  <div class="reveal" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem;margin-bottom:2rem;">
+    <!-- ETL Flow SVG -->
+    <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+      <!-- EC2 Box -->
+      <rect x="10" y="40" width="100" height="120" rx="8" fill="#1A1200" stroke="rgba(255,153,0,0.3)" stroke-width="1.5"/>
+      <text x="60" y="60" text-anchor="middle" font-family="Space Mono" font-size="7" fill="#FF9900">AMAZON</text>
+      <text x="60" y="72" text-anchor="middle" font-family="Space Mono" font-size="7" fill="#FF9900">EC2</text>
+      <!-- CSV -->
+      <rect x="20" y="82" width="30" height="20" rx="3" fill="#3AB03A" opacity="0.8"/>
+      <text x="35" y="96" text-anchor="middle" font-family="Space Mono" font-size="7" fill="white" font-weight="bold">CSV</text>
+      <!-- SH -->
+      <rect x="56" y="82" width="24" height="14" rx="3" fill="rgba(0,180,216,0.6)"/>
+      <text x="68" y="93" text-anchor="middle" font-family="Space Mono" font-size="7" fill="white">.sh</text>
+      <!-- Python -->
+      <ellipse cx="40" cy="130" rx="14" ry="10" fill="#306998" opacity="0.8"/>
+      <ellipse cx="70" cy="130" rx="14" ry="10" fill="#FFD43B" opacity="0.8"/>
+      <text x="55" y="160" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#7B9CB5">Python</text>
+
+      <!-- Arrow EC2 → S3 -->
+      <line x1="110" y1="100" x2="155" y2="100" stroke="#FF9900" stroke-width="1.5" opacity="0.5"/>
+      <polyline points="150,95 158,100 150,105" stroke="#FF9900" stroke-width="1.5" fill="none"/>
+
+      <!-- S3 #1 -->
+      <rect x="160" y="72" width="64" height="56" rx="8" fill="#1A3A1A" stroke="#3AB03A" stroke-width="1.5"/>
+      <text x="192" y="94" text-anchor="middle" font-family="Space Mono" font-size="6.5" fill="#5DC85D">Amazon</text>
+      <text x="192" y="106" text-anchor="middle" font-family="Space Mono" font-size="6.5" fill="#5DC85D">S3</text>
+      <circle cx="192" cy="120" r="5" fill="white" opacity="0.5"/>
+
+      <!-- Arrow S3 → Catalog1 -->
+      <line x1="224" y1="100" x2="264" y2="100" stroke="#FF9900" stroke-width="1.5" opacity="0.5"/>
+      <polyline points="259,95 267,100 259,105" stroke="#FF9900" stroke-width="1.5" fill="none"/>
+
+      <!-- Data Catalog #1 -->
+      <rect x="268" y="72" width="64" height="56" rx="8" fill="#1A0F2E" stroke="#7C4DFF" stroke-width="1.5"/>
+      <text x="300" y="94" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="#7C4DFF">AWS Glue</text>
+      <text x="300" y="106" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="#7C4DFF">Data Catalog</text>
+
+      <!-- Arrow Catalog → ETL Job -->
+      <line x1="332" y1="100" x2="372" y2="100" stroke="#FF9900" stroke-width="1.5" opacity="0.5"/>
+      <polyline points="367,95 375,100 367,105" stroke="#FF9900" stroke-width="1.5" fill="none"/>
+
+      <!-- ETL Job + Spark (dashed box) -->
+      <rect x="376" y="58" width="100" height="84" rx="8" fill="#1A0F2E" stroke="#7C4DFF" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="426" y="80" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#7C4DFF">AWS Glue</text>
+      <text x="426" y="92" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#7C4DFF">ETL Job</text>
+      <!-- Spark star -->
+      <text x="426" y="120" text-anchor="middle" font-family="Arial" font-size="16" fill="#E25A00">✦</text>
+      <text x="426" y="135" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#E25A00">Spark</text>
+
+      <!-- Arrow ETL → Parquet -->
+      <line x1="476" y1="100" x2="516" y2="100" stroke="#FF9900" stroke-width="1.5" opacity="0.5"/>
+      <polyline points="511,95 519,100 511,105" stroke="#FF9900" stroke-width="1.5" fill="none"/>
+
+      <!-- Parquet -->
+      <rect x="520" y="72" width="70" height="56" rx="8" fill="#001A0F" stroke="#06D6A0" stroke-width="1.5"/>
+      <text x="555" y="96" text-anchor="middle" font-family="Space Mono" font-size="7" fill="#06D6A0">Parquet</text>
+      <text x="555" y="112" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#06D6A0" opacity="0.6">columnar</text>
+
+      <!-- Arrow down Parquet → S3 #2 -->
+      <line x1="555" y1="128" x2="555" y2="160" stroke="#FF9900" stroke-width="1.5" opacity="0.5" stroke-dasharray="3,2"/>
+      <polyline points="550,155 555,163 560,155" stroke="#FF9900" stroke-width="1.5" fill="none"/>
+      <!-- S3 #2 -->
+      <rect x="524" y="164" width="62" height="30" rx="6" fill="#1A3A1A" stroke="#3AB03A" stroke-width="1.5"/>
+      <text x="555" y="183" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#5DC85D">Amazon S3</text>
+
+      <!-- Back arrow S3#2 → Catalog2 -->
+      <line x1="524" y1="179" x2="440" y2="179" stroke="#FF9900" stroke-width="1.5" opacity="0.4"/>
+      <polyline points="445,174 437,179 445,184" stroke="#FF9900" stroke-width="1.5" fill="none"/>
+      <!-- Catalog #2 -->
+      <rect x="358" y="164" width="76" height="30" rx="6" fill="#1A0F2E" stroke="#7C4DFF" stroke-width="1.5"/>
+      <text x="396" y="183" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="#7C4DFF">Glue Data Catalog</text>
+
+      <!-- Back arrow Catalog2 → Athena -->
+      <line x1="358" y1="179" x2="294" y2="179" stroke="#FF9900" stroke-width="1.5" opacity="0.4"/>
+      <polyline points="299,174 291,179 299,184" stroke="#FF9900" stroke-width="1.5" fill="none"/>
+      <!-- Athena -->
+      <rect x="210" y="164" width="76" height="30" rx="6" fill="#2A1200" stroke="#FF8800" stroke-width="1.5"/>
+      <text x="248" y="183" text-anchor="middle" font-family="Space Mono" font-size="6.5" fill="#FFA500">AWS Athena</text>
+    </svg>
+  </div>
+
+  <!-- Medallion -->
+  <div class="section-label reveal">Data Lake Architecture</div>
+  <div class="medallion reveal">
+    <div class="medal-card bronze">
+      <div class="medal-badge">🥉</div>
+      <div class="medal-title">Bronze Layer</div>
+      <div class="medal-desc">Raw ingestion and historical storage. All original data lands here untouched — the immutable source of truth from Kafka, Kinesis, CSV/JSON/TXT files and Spark streams.</div>
+      <div class="medal-tags">
+        <span class="medal-tag">Kafka</span>
+        <span class="medal-tag">Kinesis</span>
+        <span class="medal-tag">CSV / JSON</span>
+        <span class="medal-tag">Raw</span>
+      </div>
+    </div>
+    <div class="medal-card silver">
+      <div class="medal-badge">🥈</div>
+      <div class="medal-title">Silver Layer</div>
+      <div class="medal-desc">Filtered, cleaned and augmented data. Glue ETL jobs transform raw records into validated, deduplicated datasets ready for analytics consumption.</div>
+      <div class="medal-tags">
+        <span class="medal-tag">Filtered</span>
+        <span class="medal-tag">Cleaned</span>
+        <span class="medal-tag">Augmented</span>
+        <span class="medal-tag">Validated</span>
+      </div>
+    </div>
+    <div class="medal-card gold">
+      <div class="medal-badge">🥇</div>
+      <div class="medal-title">Gold Layer</div>
+      <div class="medal-desc">Business-level aggregates optimised for BI reporting, streaming analytics and ML model training. KPIs, EMAs, SMAs and candlestick data live here.</div>
+      <div class="medal-tags">
+        <span class="medal-tag">BI & Reporting</span>
+        <span class="medal-tag">ML Ready</span>
+        <span class="medal-tag">Aggregated</span>
+        <span class="medal-tag">KPIs</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CHARTS / QUICKSIGHT -->
+<section id="charts">
+  <div class="section-label">03 — Visualization</div>
+  <h2>Dashboard <em>Results</em></h2>
+
+  <div class="charts-showcase reveal">
+    <!-- BTC Price + SMA/EMA -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-dot" style="background:#F7931A;"></div>
+        <div class="chart-title">BTC CLOSE PRICE · SMA-100 · EMA-10 — Last Year</div>
+        <div class="chart-badge">QUICKSIGHT</div>
+      </div>
+      <div class="chart-body">
+        <svg viewBox="0 0 480 180" style="width:100%;height:auto;">
+          <!-- Grid lines -->
+          <line x1="0" y1="150" x2="480" y2="150" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <line x1="0" y1="110" x2="480" y2="110" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <line x1="0" y1="70"  x2="480" y2="70"  stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <line x1="0" y1="30"  x2="480" y2="30"  stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <!-- Y labels -->
+          <text x="2" y="153" font-family="Space Mono" font-size="7" fill="#4a6a8a">40K</text>
+          <text x="2" y="113" font-family="Space Mono" font-size="7" fill="#4a6a8a">60K</text>
+          <text x="2" y="73"  font-family="Space Mono" font-size="7" fill="#4a6a8a">80K</text>
+          <text x="2" y="33"  font-family="Space Mono" font-size="7" fill="#4a6a8a">100K</text>
+          <!-- SMA-100 smooth curve (black/dark) -->
+          <path d="M30,148 C80,145 130,140 180,135 C230,130 280,118 330,98 C380,78 430,52 470,28" stroke="#334" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <!-- EMA-10 jagged (gold) -->
+          <path d="M30,145 L50,140 L70,148 L90,135 L110,142 L130,130 L150,138 L170,125 L190,132 L210,120 L230,128 L250,115 L270,122 L290,105 L310,98 L330,90 L350,78 L370,58 L390,42 L410,35 L430,25 L450,18 L470,12" stroke="#F7931A" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+          <!-- Close price (blue/teal) -->
+          <path d="M30,143 L50,148 L70,140 L90,145 L110,132 L130,138 L150,128 L170,134 L190,122 L210,130 L230,115 L250,122 L270,108 L290,100 L310,92 L330,85 L350,70 L370,55 L390,38 L410,30 L430,22 L450,15 L470,8" stroke="#00D8FF" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+          <!-- Legend -->
+          <circle cx="30" cy="168" r="3" fill="#334"/>
+          <text x="37" y="172" font-family="Space Mono" font-size="7" fill="#7B9CB5">SMA-100</text>
+          <circle cx="100" cy="168" r="3" fill="#F7931A"/>
+          <text x="107" y="172" font-family="Space Mono" font-size="7" fill="#7B9CB5">EMA-10</text>
+          <circle cx="170" cy="168" r="3" fill="#00D8FF"/>
+          <text x="177" y="172" font-family="Space Mono" font-size="7" fill="#7B9CB5">Close</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ETH Candlestick -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-dot" style="background:#627EEA;"></div>
+        <div class="chart-title">ETH CANDLESTICK — vs TradingView</div>
+        <div class="chart-badge">VALIDATED</div>
+      </div>
+      <div class="chart-body">
+        <svg viewBox="0 0 480 180" style="width:100%;height:auto;" id="candleSvg">
+          <!-- Grid -->
+          <line x1="0" y1="150" x2="480" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="110" x2="480" y2="110" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="70"  x2="480" y2="70"  stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="30"  x2="480" y2="30"  stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <text x="2" y="153" font-family="Space Mono" font-size="7" fill="#4a6a8a">500</text>
+          <text x="2" y="113" font-family="Space Mono" font-size="7" fill="#4a6a8a">1500</text>
+          <text x="2" y="73"  font-family="Space Mono" font-size="7" fill="#4a6a8a">2500</text>
+          <text x="2" y="33"  font-family="Space Mono" font-size="7" fill="#4a6a8a">3500</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- EMA Comparison wide -->
+    <div class="chart-card wide">
+      <div class="chart-header">
+        <div class="chart-dot" style="background:#06D6A0;"></div>
+        <div class="chart-title">EMA COMPARISON — EMA-10 · EMA-100 · EMA-200 (BTC)</div>
+        <div class="chart-badge">MULTI-YEAR</div>
+      </div>
+      <div class="chart-body">
+        <svg viewBox="0 0 920 180" style="width:100%;height:auto;">
+          <!-- Grid -->
+          <line x1="0" y1="150" x2="920" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="110" x2="920" y2="110" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="70"  x2="920" y2="70"  stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="30"  x2="920" y2="30"  stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <text x="2" y="153" font-family="Space Mono" font-size="7" fill="#4a6a8a">20K</text>
+          <text x="2" y="113" font-family="Space Mono" font-size="7" fill="#4a6a8a">40K</text>
+          <text x="2" y="73"  font-family="Space Mono" font-size="7" fill="#4a6a8a">60K</text>
+          <text x="2" y="33"  font-family="Space Mono" font-size="7" fill="#4a6a8a">100K</text>
+          <!-- EMA-200 (teal, smooth) -->
+          <path d="M20,140 C80,138 140,135 200,130 C260,125 320,118 380,115 C440,112 500,118 560,108 C620,98 680,70 740,50 C800,30 860,18 900,10" stroke="#00B4D8" stroke-width="2.5" fill="none" opacity="0.7"/>
+          <!-- EMA-100 (amber) -->
+          <path d="M20,142 C80,136 140,130 200,126 C260,122 320,115 380,110 C440,108 500,115 560,100 C620,88 680,62 740,40 C800,22 860,12 900,6" stroke="#FFB800" stroke-width="2" fill="none" opacity="0.8"/>
+          <!-- EMA-10 (dark blue, volatile) -->
+          <path d="M20,138 L60,132 L100,140 L140,128 L180,136 L220,122 L260,130 L300,115 L340,122 L380,108 L420,116 L460,100 L500,112 L540,96 L580,88 L620,78 L660,62 L700,50 L740,35 L780,22 L820,14 L860,8 L900,3" stroke="#1A3A8A" stroke-width="1.5" fill="none" stroke-linejoin="round" opacity="0.9"/>
+          <!-- Labels -->
+          <circle cx="30" cy="168" r="3" fill="#00B4D8"/>
+          <text x="38" y="172" font-family="Space Mono" font-size="7" fill="#7B9CB5">EMA-200</text>
+          <circle cx="110" cy="168" r="3" fill="#FFB800"/>
+          <text x="118" y="172" font-family="Space Mono" font-size="7" fill="#7B9CB5">EMA-100</text>
+          <circle cx="190" cy="168" r="3" fill="#1A3A8A"/>
+          <text x="198" y="172" font-family="Space Mono" font-size="7" fill="#7B9CB5">EMA-10</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- STREAMING -->
+<section id="streaming">
+  <div class="section-label">04 — Real-Time</div>
+  <h2>Streaming <em>Visualization</em></h2>
+
+  <div class="streaming-grid reveal">
+    <div class="streaming-text">
+      <h3>Live Market Data Pipeline</h3>
+      <p>Real-time cryptocurrency price data streams through Apache Kafka topics, consumed and visualised in Grafana dashboards with sub-second latency — enabling live monitoring of order flow and price action.</p>
+      <div class="tech-stack">
+        <div class="tech-pill kafka">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="2.5"/><circle cx="8" cy="18" r="2.5"/><circle cx="19" cy="12" r="2.5"/><line x1="10.5" y1="7" x2="16.5" y2="11" stroke="currentColor" stroke-width="1.5"/><line x1="10.5" y1="17" x2="16.5" y2="13" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="8.5" x2="8" y2="15.5" stroke="currentColor" stroke-width="1.5"/></svg>
+          Apache Kafka
+        </div>
+        <div class="tech-pill grafana">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+          Grafana
+        </div>
+      </div>
+    </div>
+
+    <div class="streaming-visual">
+      <div style="font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--aws-orange);margin-bottom:1rem;letter-spacing:0.1em;">LIVE DATA STREAM</div>
+      <div class="stream-line"></div>
+      <div class="stream-line"></div>
+      <div class="stream-line"></div>
+      <div class="stream-line"></div>
+      <div class="stream-line"></div>
+
+      <div style="margin-top:1.5rem;display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <div style="background:rgba(255,153,0,0.06);border:1px solid rgba(255,153,0,0.15);border-radius:8px;padding:0.75rem;">
+          <div style="font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--muted);margin-bottom:0.3rem;">BTC PRICE</div>
+          <div style="font-size:1.1rem;font-weight:800;color:#F7931A;" id="btcPrice">$89,420</div>
+        </div>
+        <div style="background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.15);border-radius:8px;padding:0.75rem;">
+          <div style="font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--muted);margin-bottom:0.3rem;">ETH PRICE</div>
+          <div style="font-size:1.1rem;font-weight:800;color:#627EEA;" id="ethPrice">$1,813</div>
+        </div>
+        <div style="background:rgba(6,214,160,0.06);border:1px solid rgba(6,214,160,0.15);border-radius:8px;padding:0.75rem;">
+          <div style="font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--muted);margin-bottom:0.3rem;">KAFKA LAG</div>
+          <div style="font-size:1.1rem;font-weight:800;color:var(--aws-teal);" id="kafkaLag">0ms</div>
+        </div>
+        <div style="background:rgba(239,35,60,0.06);border:1px solid rgba(239,35,60,0.15);border-radius:8px;padding:0.75rem;">
+          <div style="font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--muted);margin-bottom:0.3rem;">MSG/SEC</div>
+          <div style="font-size:1.1rem;font-weight:800;color:#EF233C;" id="msgSec">847</div>
+        </div>
+      </div>
+      <div class="stream-label">↑ Simulated live feed</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- S3 DETAIL -->
+<section id="s3">
+  <div class="section-label">05 — Storage</div>
+  <h2>S3 Access <em>Control</em></h2>
+  <div class="s3-diagram reveal" style="max-width:600px;">
+    <div style="text-align:center;font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--muted);margin-bottom:1rem;">S3 BUCKET POLICY & ACL ARCHITECTURE</div>
+    <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+      <!-- Bucket -->
+      <rect x="170" y="60" width="80" height="80" rx="10" fill="#1A3A1A" stroke="#3AB03A" stroke-width="2"/>
+      <text x="210" y="98" text-anchor="middle" font-family="Space Mono" font-size="7" fill="#5DC85D">S3</text>
+      <text x="210" y="110" text-anchor="middle" font-family="Space Mono" font-size="7" fill="#5DC85D">BUCKET</text>
+      <circle cx="210" cy="125" r="7" fill="white" opacity="0.4"/>
+      <line x1="206" y1="125" x2="214" y2="125" stroke="#3AB03A" stroke-width="1.5"/>
+      <line x1="210" y1="121" x2="210" y2="129" stroke="#3AB03A" stroke-width="1.5"/>
+
+      <!-- JSON Policy -->
+      <rect x="330" y="30" width="70" height="45" rx="6" fill="#001A2A" stroke="rgba(0,180,216,0.5)" stroke-width="1.5"/>
+      <text x="365" y="52" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#00B4D8">{ }</text>
+      <text x="365" y="66" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#00B4D8">BUCKET POLICY</text>
+      <text x="365" y="77" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="#4a6a8a">JSON</text>
+
+      <!-- XML ACL -->
+      <rect x="330" y="120" width="70" height="45" rx="6" fill="#1A0008" stroke="rgba(239,35,60,0.4)" stroke-width="1.5"/>
+      <text x="365" y="140" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#EF233C">&lt;/&gt;</text>
+      <text x="365" y="154" text-anchor="middle" font-family="Space Mono" font-size="6" fill="#EF233C">BUCKET ACL</text>
+      <text x="365" y="165" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="#4a6a8a">XML</text>
+
+      <!-- Arrow Bucket → JSON (Policy arrow) -->
+      <path d="M250 80 Q300 52 330 52" stroke="#00B4D8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" opacity="0.7"/>
+      <text x="282" y="55" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="#00B4D8">BUCKET POLICY</text>
+
+      <!-- Arrow Bucket → XML (ACL arrow) -->
+      <path d="M250 120 Q300 143 330 143" stroke="#EF233C" stroke-width="1.5" fill="none" stroke-dasharray="4,3" opacity="0.6"/>
+      <text x="285" y="142" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="#EF233C">BUCKET ACL</text>
+
+      <!-- Source icons -->
+      <!-- EC2 / App -->
+      <rect x="60" y="70" width="60" height="30" rx="5" fill="#1A1200" stroke="rgba(255,153,0,0.3)" stroke-width="1.5"/>
+      <text x="90" y="89" text-anchor="middle" font-family="Space Mono" font-size="6.5" fill="#FF9900">App/User</text>
+      <line x1="120" y1="85" x2="170" y2="90" stroke="rgba(255,153,0,0.4)" stroke-width="1.5" stroke-dasharray="3,2"/>
+      <polyline points="165,86 173,90 165,94" stroke="rgba(255,153,0,0.4)" stroke-width="1.5" fill="none"/>
+
+      <!-- IAM -->
+      <rect x="60" y="110" width="60" height="30" rx="5" fill="#1A0F2E" stroke="rgba(124,77,255,0.3)" stroke-width="1.5"/>
+      <text x="90" y="129" text-anchor="middle" font-family="Space Mono" font-size="6.5" fill="#7C4DFF">IAM Role</text>
+      <line x1="120" y1="125" x2="170" y2="115" stroke="rgba(124,77,255,0.4)" stroke-width="1.5" stroke-dasharray="3,2"/>
+      <polyline points="165,111 173,115 165,119" stroke="rgba(124,77,255,0.4)" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FUTURE -->
+<section id="future">
+  <div class="section-label">06 — Roadmap</div>
+  <h2>Future <em>Implementations</em></h2>
+
+  <div class="future-cards reveal">
+    <div class="future-card">
+      <div class="future-num">01</div>
+      <h3>ML Buy/Sell Signal Models</h3>
+      <p>Machine learning models trained on the Gold layer data to predict optimal entry and exit points, leveraging real-time Kafka streams for immediate signal generation with sub-second inference.</p>
+    </div>
+    <div class="future-card">
+      <div class="future-num">02</div>
+      <h3>Advanced Technical Analysis</h3>
+      <p>Automated technical analysis engine consuming processed Parquet data and computed KPIs — generating RSI, MACD, Bollinger Bands and custom indicators directly from the data pipeline.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div style="margin-bottom:0.5rem;">
+    <svg width="40" height="25" viewBox="0 0 100 60" style="vertical-align:middle;margin-right:0.5rem;">
+      <text x="5" y="40" font-family="Arial" font-weight="900" font-size="36" fill="white">aws</text>
+      <path d="M10 50 Q50 65 90 50" stroke="#FF9900" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M85 45 L92 50 L85 53" stroke="#FF9900" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    AWS Final Project — Crypto Analytics Pipeline
+  </div>
+  <div>Jorge Ibinarriaga Robles · Bernardo Gómez Carrasco · Enrique Rodríguez Camacho</div>
+</footer>
+
+<script>
+  // Candlestick chart generator
+  function generateCandles() {
+    const svg = document.getElementById('candleSvg');
+    const candles = [];
+    let price = 1800;
+    for (let i = 0; i < 40; i++) {
+      const open = price;
+      const change = (Math.random() - 0.48) * 120;
+      const close = open + change;
+      const high = Math.max(open, close) + Math.random() * 60;
+      const low  = Math.min(open, close) - Math.random() * 60;
+      candles.push({ open, close, high, low });
+      price = close;
+    }
+    const allPrices = candles.flatMap(c => [c.high, c.low]);
+    const minP = Math.min(...allPrices);
+    const maxP = Math.max(...allPrices);
+    const range = maxP - minP;
+    const toY = p => 10 + (1 - (p - minP) / range) * 160;
+    const w = 480, cw = w / 40;
+
+    candles.forEach((c, i) => {
+      const x = i * cw + cw * 0.5;
+      const isGreen = c.close >= c.open;
+      const color = isGreen ? '#22C55E' : '#EF4444';
+      // wick
+      const wick = document.createElementNS('http://www.w3.org/2000/svg','line');
+      wick.setAttribute('x1', x); wick.setAttribute('x2', x);
+      wick.setAttribute('y1', toY(c.high)); wick.setAttribute('y2', toY(c.low));
+      wick.setAttribute('stroke', color); wick.setAttribute('stroke-width', '1');
+      svg.appendChild(wick);
+      // body
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      const bodyY = toY(Math.max(c.open, c.close));
+      const bodyH = Math.abs(toY(c.open) - toY(c.close)) || 1;
+      rect.setAttribute('x', x - cw * 0.35);
+      rect.setAttribute('y', bodyY);
+      rect.setAttribute('width', cw * 0.7);
+      rect.setAttribute('height', bodyH);
+      rect.setAttribute('fill', color);
+      rect.setAttribute('rx', '1');
+      svg.appendChild(rect);
+    });
+  }
+  generateCandles();
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 80);
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
+
+  // Live price simulation
+  function randBetween(a,b) { return a + Math.random()*(b-a); }
+  let btc = 89420, eth = 1813;
+  setInterval(() => {
+    btc += (Math.random()-0.5)*200;
+    eth += (Math.random()-0.5)*30;
+    document.getElementById('btcPrice').textContent = '$' + Math.round(btc).toLocaleString();
+    document.getElementById('ethPrice').textContent = '$' + Math.round(eth).toLocaleString();
+    document.getElementById('kafkaLag').textContent = Math.round(randBetween(0,5)) + 'ms';
+    document.getElementById('msgSec').textContent = Math.round(randBetween(700,1100));
+  }, 1200);
+
+  // Mouse glow on service cards
+  document.querySelectorAll('.service-card').forEach(card => {
+    card.addEventListener('mousemove', e => {
+      const r = card.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width * 100).toFixed(1);
+      const y = ((e.clientY - r.top)  / r.height * 100).toFixed(1);
+      card.style.setProperty('--mx', x + '%');
+      card.style.setProperty('--my', y + '%');
+    });
+  });
+</script>
+</body>
+</html>
