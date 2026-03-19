@@ -1,0 +1,224 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AWS Crypto Data Pipeline – AWS Glue Resources.
+  Creates the Glue Data Catalog database, crawlers, and batch/streaming
+  ETL jobs used by the pipeline.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  ProjectName:
+    Type: String
+    Default: crypto-pipeline
+
+  RawBucketName:
+    Type: String
+  ProcessedBucketName:
+    Type: String
+  CuratedBucketName:
+    Type: String
+  GlueScriptsBucketName:
+    Type: String
+
+  KinesisStreamName:
+    Type: String
+  KinesisStreamArn:
+    Type: String
+
+  AthenaResultsBucketName:
+    Type: String
+    Description: Name of the Athena results S3 bucket (from the S3 stack output).
+
+  GlueDatabaseName:
+    Type: String
+    Default: crypto_pipeline_db
+
+  WorkerType:
+    Type: String
+    Default: G.1X
+    AllowedValues: [Standard, G.1X, G.2X]
+
+  NumberOfWorkers:
+    Type: Number
+    Default: 2
+
+Resources:
+
+  # --------------------------------------------------------------------------
+  # IAM role for Glue
+  # --------------------------------------------------------------------------
+  GlueServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-glue-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueS3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${RawBucketName}"
+                  - !Sub "arn:aws:s3:::${RawBucketName}/*"
+                  - !Sub "arn:aws:s3:::${ProcessedBucketName}"
+                  - !Sub "arn:aws:s3:::${ProcessedBucketName}/*"
+                  - !Sub "arn:aws:s3:::${CuratedBucketName}"
+                  - !Sub "arn:aws:s3:::${CuratedBucketName}/*"
+                  - !Sub "arn:aws:s3:::${GlueScriptsBucketName}"
+                  - !Sub "arn:aws:s3:::${GlueScriptsBucketName}/*"
+              - Effect: Allow
+                Action:
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListShards
+                Resource: !Ref KinesisStreamArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Glue Data Catalog database
+  # --------------------------------------------------------------------------
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Ref GlueDatabaseName
+        Description: Crypto pipeline data catalog database.
+
+  # --------------------------------------------------------------------------
+  # Crawler – discovers schema of processed Parquet data
+  # --------------------------------------------------------------------------
+  ProcessedDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-processed-crawler"
+      Role: !GetAtt GlueServiceRole.Arn
+      DatabaseName: !Ref GlueDatabaseName
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${ProcessedBucketName}/processed/prices/"
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: DEPRECATE_IN_DATABASE
+      Schedule:
+        ScheduleExpression: "cron(0 * * * ? *)"
+      Tags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Batch ETL Glue job
+  # --------------------------------------------------------------------------
+  BatchETLJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-batch-etl"
+      Role: !GetAtt GlueServiceRole.Arn
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${GlueScriptsBucketName}/glue/batch_etl_job.py"
+        PythonVersion: "3"
+      DefaultArguments:
+        "--RAW_BUCKET": !Ref RawBucketName
+        "--PROCESSED_BUCKET": !Ref ProcessedBucketName
+        "--CURATED_BUCKET": !Ref CuratedBucketName
+        "--job-bookmark-option": "job-bookmark-enable"
+        "--enable-metrics": ""
+        "--enable-continuous-cloudwatch-log": "true"
+      GlueVersion: "4.0"
+      WorkerType: !Ref WorkerType
+      NumberOfWorkers: !Ref NumberOfWorkers
+      Timeout: 60
+      Tags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Streaming ETL Glue job
+  # --------------------------------------------------------------------------
+  StreamingETLJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-streaming-etl"
+      Role: !GetAtt GlueServiceRole.Arn
+      Command:
+        Name: gluestreaming
+        ScriptLocation: !Sub "s3://${GlueScriptsBucketName}/glue/streaming_etl_job.py"
+        PythonVersion: "3"
+      DefaultArguments:
+        "--KINESIS_STREAM_NAME": !Ref KinesisStreamName
+        "--PROCESSED_BUCKET": !Ref ProcessedBucketName
+        "--AWS_REGION": !Ref AWS::Region
+        "--CHECKPOINT_LOCATION": !Sub "s3://${ProcessedBucketName}/checkpoints/streaming/"
+        "--enable-metrics": ""
+        "--enable-continuous-cloudwatch-log": "true"
+      GlueVersion: "4.0"
+      WorkerType: !Ref WorkerType
+      NumberOfWorkers: !Ref NumberOfWorkers
+      Timeout: 2880
+      Tags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Athena Workgroup
+  # --------------------------------------------------------------------------
+  AthenaWorkgroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-workgroup"
+      Description: Workgroup for crypto pipeline analytics queries.
+      State: ENABLED
+      WorkGroupConfiguration:
+        ResultConfiguration:
+          OutputLocation: !Sub "s3://${AthenaResultsBucketName}/queries/"
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  GlueDatabaseName:
+    Value: !Ref GlueDatabase
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-GlueDatabase"
+
+  BatchETLJobName:
+    Value: !Ref BatchETLJob
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-BatchETLJob"
+
+  StreamingETLJobName:
+    Value: !Ref StreamingETLJob
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-StreamingETLJob"
+
+  AthenaWorkgroupName:
+    Value: !Ref AthenaWorkgroup
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-AthenaWorkgroup"

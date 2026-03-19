@@ -1,0 +1,204 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AWS Crypto Data Pipeline – Lambda Functions.
+  Deploys the crypto data ingestion Lambda and the Kinesis stream processor
+  Lambda along with their IAM execution roles and a scheduled EventBridge rule.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  ProjectName:
+    Type: String
+    Default: crypto-pipeline
+
+  RawBucketName:
+    Type: String
+    Description: Name of the raw S3 bucket (from the S3 stack output).
+
+  ProcessedBucketName:
+    Type: String
+    Description: Name of the processed S3 bucket (from the S3 stack output).
+
+  KinesisStreamName:
+    Type: String
+    Description: Kinesis stream name (from the Kinesis stack output).
+
+  KinesisStreamArn:
+    Type: String
+    Description: Kinesis stream ARN (from the Kinesis stack output).
+
+  DynamoDBTableName:
+    Type: String
+    Default: crypto-prices-live
+    Description: DynamoDB table for real-time price serving.
+
+  IngestionSchedule:
+    Type: String
+    Default: "rate(5 minutes)"
+    Description: EventBridge schedule expression for the ingestion Lambda.
+
+  LambdaCodeBucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment ZIP packages.
+
+  IngestionCodeKey:
+    Type: String
+    Default: lambda/crypto_ingestion.zip
+    Description: S3 key of the ingestion Lambda ZIP.
+
+  StreamProcessorCodeKey:
+    Type: String
+    Default: lambda/stream_processor.zip
+    Description: S3 key of the stream processor Lambda ZIP.
+
+Resources:
+
+  # --------------------------------------------------------------------------
+  # IAM role – shared execution role for all Lambda functions
+  # --------------------------------------------------------------------------
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CryptoPipelineAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${RawBucketName}"
+                  - !Sub "arn:aws:s3:::${RawBucketName}/*"
+                  - !Sub "arn:aws:s3:::${ProcessedBucketName}"
+                  - !Sub "arn:aws:s3:::${ProcessedBucketName}/*"
+              - Effect: Allow
+                Action:
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListShards
+                Resource: !Ref KinesisStreamArn
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTableName}"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Ingestion Lambda
+  # --------------------------------------------------------------------------
+  IngestionLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-ingestion-${Environment}"
+      Runtime: python3.12
+      Handler: lambda_function.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref IngestionCodeKey
+      Environment:
+        Variables:
+          RAW_BUCKET: !Ref RawBucketName
+          KINESIS_STREAM_NAME: !Ref KinesisStreamName
+          AWS_REGION: !Ref AWS::Region
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # EventBridge rule – invoke ingestion Lambda on schedule
+  IngestionScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-ingestion-schedule"
+      Description: Triggers the crypto ingestion Lambda on a schedule.
+      ScheduleExpression: !Ref IngestionSchedule
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt IngestionLambda.Arn
+          Id: IngestionLambdaTarget
+
+  IngestionSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt IngestionLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IngestionScheduleRule.Arn
+
+  # --------------------------------------------------------------------------
+  # Stream processor Lambda
+  # --------------------------------------------------------------------------
+  StreamProcessorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-stream-processor-${Environment}"
+      Runtime: python3.12
+      Handler: lambda_function.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref StreamProcessorCodeKey
+      Environment:
+        Variables:
+          PROCESSED_BUCKET: !Ref ProcessedBucketName
+          DYNAMODB_TABLE: !Ref DynamoDBTableName
+          AWS_REGION: !Ref AWS::Region
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Kinesis event source mapping for the stream processor Lambda
+  KinesisEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !Ref KinesisStreamArn
+      FunctionName: !GetAtt StreamProcessorLambda.Arn
+      StartingPosition: TRIM_HORIZON
+      BatchSize: 100
+      BisectBatchOnFunctionError: true
+
+Outputs:
+  IngestionLambdaArn:
+    Description: Ingestion Lambda ARN
+    Value: !GetAtt IngestionLambda.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-IngestionLambdaArn"
+
+  StreamProcessorLambdaArn:
+    Description: Stream processor Lambda ARN
+    Value: !GetAtt StreamProcessorLambda.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-StreamProcessorLambdaArn"

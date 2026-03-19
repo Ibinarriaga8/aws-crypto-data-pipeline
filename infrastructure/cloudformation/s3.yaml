@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AWS Crypto Data Pipeline – S3 Data Lake Buckets.
+  Creates the three-zone data lake (raw, processed, curated) plus an
+  Athena results bucket, all with versioning, server-side encryption, and
+  public access blocked.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment.
+
+  ProjectName:
+    Type: String
+    Default: crypto-pipeline
+    Description: Short name used as a bucket-name prefix.
+
+Resources:
+
+  # --------------------------------------------------------------------------
+  # Raw zone – stores original API payloads (JSON)
+  # --------------------------------------------------------------------------
+  RawBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-raw-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: MoveRawToIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Zone
+          Value: raw
+
+  # --------------------------------------------------------------------------
+  # Processed zone – cleansed and enriched Parquet files
+  # --------------------------------------------------------------------------
+  ProcessedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-processed-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Zone
+          Value: processed
+
+  # --------------------------------------------------------------------------
+  # Curated zone – analytics-ready aggregated data
+  # --------------------------------------------------------------------------
+  CuratedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-curated-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Zone
+          Value: curated
+
+  # --------------------------------------------------------------------------
+  # Athena results bucket
+  # --------------------------------------------------------------------------
+  AthenaResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-athena-results-${Environment}-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireAthenaResults
+            Status: Enabled
+            ExpirationInDays: 30
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Glue scripts bucket – stores Glue job Python scripts
+  # --------------------------------------------------------------------------
+  GlueScriptsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-glue-scripts-${Environment}-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  RawBucketName:
+    Description: Raw zone S3 bucket name
+    Value: !Ref RawBucket
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-RawBucket"
+
+  ProcessedBucketName:
+    Description: Processed zone S3 bucket name
+    Value: !Ref ProcessedBucket
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-ProcessedBucket"
+
+  CuratedBucketName:
+    Description: Curated zone S3 bucket name
+    Value: !Ref CuratedBucket
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-CuratedBucket"
+
+  AthenaResultsBucketName:
+    Description: Athena results S3 bucket name
+    Value: !Ref AthenaResultsBucket
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-AthenaResultsBucket"
+
+  GlueScriptsBucketName:
+    Description: Glue scripts S3 bucket name
+    Value: !Ref GlueScriptsBucket
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-GlueScriptsBucket"

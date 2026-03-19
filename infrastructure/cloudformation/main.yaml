@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AWS Crypto Data Pipeline – Main / Root Stack.
+  Orchestrates all nested stacks (S3, Kinesis, Lambda, Glue) using
+  CloudFormation nested stack resources.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  ProjectName:
+    Type: String
+    Default: crypto-pipeline
+
+  TemplatesBucket:
+    Type: String
+    Description: S3 bucket where the nested CloudFormation templates are stored.
+
+  LambdaCodeBucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment ZIP packages.
+
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: Email address for CloudWatch / SNS alerts.
+
+  IngestionSchedule:
+    Type: String
+    Default: "rate(5 minutes)"
+
+  ShardCount:
+    Type: Number
+    Default: 2
+
+Resources:
+
+  S3Stack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplatesBucket}/infrastructure/cloudformation/s3.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  KinesisStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplatesBucket}/infrastructure/cloudformation/kinesis.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        ShardCount: !Ref ShardCount
+        AlertEmail: !Ref AlertEmail
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - S3Stack
+      - KinesisStack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplatesBucket}/infrastructure/cloudformation/lambda.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        RawBucketName: !GetAtt S3Stack.Outputs.RawBucketName
+        ProcessedBucketName: !GetAtt S3Stack.Outputs.ProcessedBucketName
+        KinesisStreamName: !GetAtt KinesisStack.Outputs.StreamName
+        KinesisStreamArn: !GetAtt KinesisStack.Outputs.StreamArn
+        IngestionSchedule: !Ref IngestionSchedule
+        LambdaCodeBucket: !Ref LambdaCodeBucket
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  GlueStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - S3Stack
+      - KinesisStack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplatesBucket}/infrastructure/cloudformation/glue.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        RawBucketName: !GetAtt S3Stack.Outputs.RawBucketName
+        ProcessedBucketName: !GetAtt S3Stack.Outputs.ProcessedBucketName
+        CuratedBucketName: !GetAtt S3Stack.Outputs.CuratedBucketName
+        GlueScriptsBucketName: !GetAtt S3Stack.Outputs.GlueScriptsBucketName
+        KinesisStreamName: !GetAtt KinesisStack.Outputs.StreamName
+        KinesisStreamArn: !GetAtt KinesisStack.Outputs.StreamArn
+        AthenaResultsBucketName: !GetAtt S3Stack.Outputs.AthenaResultsBucketName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  RawBucket:
+    Value: !GetAtt S3Stack.Outputs.RawBucketName
+
+  ProcessedBucket:
+    Value: !GetAtt S3Stack.Outputs.ProcessedBucketName
+
+  CuratedBucket:
+    Value: !GetAtt S3Stack.Outputs.CuratedBucketName
+
+  KinesisStream:
+    Value: !GetAtt KinesisStack.Outputs.StreamName
+
+  IngestionLambda:
+    Value: !GetAtt LambdaStack.Outputs.IngestionLambdaArn
+
+  StreamProcessorLambda:
+    Value: !GetAtt LambdaStack.Outputs.StreamProcessorLambdaArn
+
+  GlueDatabase:
+    Value: !GetAtt GlueStack.Outputs.GlueDatabaseName
+
+  BatchETLJob:
+    Value: !GetAtt GlueStack.Outputs.BatchETLJobName
+
+  StreamingETLJob:
+    Value: !GetAtt GlueStack.Outputs.StreamingETLJobName

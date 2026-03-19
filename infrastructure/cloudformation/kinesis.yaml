@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AWS Crypto Data Pipeline – Kinesis Data Stream.
+  Creates the real-time price stream and an associated CloudWatch alarm
+  for monitoring iterator age (consumer lag).
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  ProjectName:
+    Type: String
+    Default: crypto-pipeline
+
+  ShardCount:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    Description: Number of shards for the Kinesis Data Stream.
+
+  RetentionPeriodHours:
+    Type: Number
+    Default: 24
+    MinValue: 24
+    MaxValue: 8760
+    Description: Data retention period in hours (24–8760).
+
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: Email address for CloudWatch alerts (leave blank to skip).
+
+Conditions:
+  CreateAlertSubscription: !Not [!Equals [!Ref AlertEmail, ""]]
+
+Resources:
+
+  CryptoPriceStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub "${ProjectName}-price-stream-${Environment}"
+      ShardCount: !Ref ShardCount
+      RetentionPeriodHours: !Ref RetentionPeriodHours
+      StreamEncryption:
+        EncryptionType: KMS
+        KeyId: alias/aws/kinesis
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch alarm – alert when consumer is falling behind
+  IteratorAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-${Environment}-KinesisIteratorAge"
+      AlarmDescription: >
+        Triggers when consumers are more than 5 minutes behind the tip of
+        the Kinesis stream.
+      Namespace: AWS/Kinesis
+      MetricName: GetRecords.IteratorAgeMilliseconds
+      Dimensions:
+        - Name: StreamName
+          Value: !Ref CryptoPriceStream
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 300000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [CreateAlertSubscription, !Ref AlertTopic, !Ref "AWS::NoValue"]
+
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${ProjectName}-${Environment}-alerts"
+      Subscription:
+        - !If
+          - CreateAlertSubscription
+          - Endpoint: !Ref AlertEmail
+            Protocol: email
+          - !Ref "AWS::NoValue"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  StreamName:
+    Description: Kinesis stream name
+    Value: !Ref CryptoPriceStream
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KinesisStream"
+
+  StreamArn:
+    Description: Kinesis stream ARN
+    Value: !GetAtt CryptoPriceStream.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KinesisStreamArn"
+
+  AlertTopicArn:
+    Description: SNS alert topic ARN
+    Value: !Ref AlertTopic
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-AlertTopicArn"

@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CryptoPriceRecord",
+  "description": "Schema for cryptocurrency price data records",
+  "type": "object",
+  "required": ["symbol", "price_usd", "timestamp"],
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "description": "Cryptocurrency symbol (e.g. bitcoin, ethereum)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Cryptocurrency full name"
+    },
+    "price_usd": {
+      "type": "number",
+      "description": "Current price in USD"
+    },
+    "market_cap_usd": {
+      "type": "number",
+      "description": "Market capitalisation in USD"
+    },
+    "volume_24h_usd": {
+      "type": "number",
+      "description": "24-hour trading volume in USD"
+    },
+    "price_change_24h": {
+      "type": "number",
+      "description": "Price change over the last 24 hours in USD"
+    },
+    "price_change_pct_24h": {
+      "type": "number",
+      "description": "Percentage price change over the last 24 hours"
+    },
+    "circulating_supply": {
+      "type": "number",
+      "description": "Circulating supply of the coin"
+    },
+    "total_supply": {
+      "type": ["number", "null"],
+      "description": "Total supply of the coin"
+    },
+    "ath": {
+      "type": "number",
+      "description": "All-time high price in USD"
+    },
+    "ath_change_pct": {
+      "type": "number",
+      "description": "Percentage change from all-time high"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of the record"
+    },
+    "ingestion_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the record was ingested"
+    },
+    "source": {
+      "type": "string",
+      "description": "Data source identifier"
+    }
+  },
+  "additionalProperties": false
+}

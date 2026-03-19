@@ -1,0 +1,52 @@
+aws:
+  region: us-east-1
+  account_id: "${AWS_ACCOUNT_ID}"
+
+s3:
+  raw_bucket: crypto-pipeline-raw
+  processed_bucket: crypto-pipeline-processed
+  curated_bucket: crypto-pipeline-curated
+  athena_results_bucket: crypto-pipeline-athena-results
+
+kinesis:
+  stream_name: crypto-price-stream
+  shard_count: 2
+  batch_size: 100
+
+glue:
+  database_name: crypto_pipeline_db
+  raw_table: crypto_prices_raw
+  processed_table: crypto_prices_processed
+  job_name: crypto_batch_etl
+  worker_type: G.1X
+  number_of_workers: 2
+
+lambda:
+  ingestion_function_name: crypto-data-ingestion
+  stream_processor_function_name: crypto-stream-processor
+  timeout: 300
+  memory_size: 512
+
+crypto:
+  api_base_url: "https://api.coingecko.com/api/v3"
+  symbols:
+    - bitcoin
+    - ethereum
+    - binancecoin
+    - solana
+    - cardano
+    - ripple
+    - polkadot
+    - dogecoin
+  vs_currency: usd
+  fetch_interval_seconds: 60
+  historical_days: 365
+
+athena:
+  database: crypto_pipeline_db
+  workgroup: crypto-pipeline-workgroup
+  output_location: "s3://crypto-pipeline-athena-results/queries/"
+
+monitoring:
+  cloudwatch_namespace: CryptoPipeline
+  alert_email: "${ALERT_EMAIL}"
